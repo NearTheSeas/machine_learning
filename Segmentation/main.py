@@ -39,15 +39,14 @@ def filter_response(img, bank):
     responses = np.zeros((w, h, bankSize))  # w * h * 38
     for r in range(bankSize):
         # TODO!
-        if r % 11 == 0:
-            responses[:, :, r] = signal.convolve2d(
-                img, bank[:, :, r],  mode='same')
+        # if r % 22 == 0:
+        responses[:, :, r] = signal.convolve2d(
+            img, bank[:, :, r],  mode='same')
     responses = responses.reshape((w*h, bankSize))
     return responses
 
 
 # 原始数据四周补-1
-# TODO!
 def pad_data(data, winSize):
     m, n = data.shape
     t1 = np.ones([winSize//2, n], dtype=int) * -1
@@ -59,6 +58,7 @@ def pad_data(data, winSize):
 
 
 # 逐像素取大小为winSize*winSize的邻域数据
+# TODO!
 def gen_dataX(data, winSize):
     x, y = data.shape
     m = x-winSize//2*2
@@ -76,9 +76,11 @@ def gen_dataX(data, winSize):
 
 
 # 计算原始图像 至 meanFeats 的距离，生成隶属度矩阵 labelIm
+# distances = cdist(responses, textons, metric='euclidean') ？？？？
 def quantizeFeats(featIm, meanFeats):
     print('quantizeFeats start')
-    [w, h, c] = featIm.shape
+    w = featIm.shape[0]
+    h = featIm.shape[1]
     [size, dim] = meanFeats.shape
     labelIm = []
     for i in range(w):
@@ -116,7 +118,7 @@ def extractTextonHists(origIm, bank, textons, winSize):
     print('extractTextonHists start')
     kCenter = textons.shape[1]
     [w, h] = origIm.size
-    featIm = np.zeros((w * h, kCenter))  # 初始化
+    featIm = np.zeros((w, h, kCenter))  # 初始化
     responses = filter_response(origIm, bank)
     # 计算纹理响应到纹理集的距离，生成隶属度矩阵
     # Calculates squared distance between two sets of points.
@@ -127,18 +129,21 @@ def extractTextonHists(origIm, bank, textons, winSize):
     # 图像边界处理
     feattexton = pad_data(feattexton, winSize)
     # 获取窗口数量
+    # TODO!
     res = gen_dataX(feattexton, winSize)
+    print(res.shape)
     # 统计纹理频率
     for i in range(res.shape[0]):
-        window = res[i]
-        frequency = Counter(window[:])
-        for key in (frequency):  # 'Counter' object has no attribute 'shape'
-            # padding 补的 -1
-            # if key != -1:
-            if key != -1:
-                textonIndex = int(key)
-                count = frequency[key]
-                featIm[i][textonIndex] = count
+        # for j in range(res.shape[1]):
+            window = res[i]
+            frequency = Counter(window[:])
+            for key in (frequency):  # 'Counter' object has no attribute 'shape'
+                # padding 补的 -1
+                # TODO!
+                if key != -1:
+                    textonIndex = int(key)
+                    count = frequency[key]
+                    featIm[i][textonIndex] = count
     return featIm
 
 
@@ -147,6 +152,7 @@ def compareSegmentations(origIm, bank, textons, winSize, numColorRegions, numTex
     print('compareSegmentations start')
     img = np.array(origIm)
     [h, w, c] = img.shape
+
     img = img.reshape((w, h, c))
     colordata = img.reshape((w*h, c))
     colorCenter = KMeans(n_clusters=numColorRegions,  random_state=0).fit(
@@ -154,7 +160,8 @@ def compareSegmentations(origIm, bank, textons, winSize, numColorRegions, numTex
     colorLabelIm = quantizeFeats(img, colorCenter)
 
     featIm = extractTextonHists(origIm, bank, textons, winSize)
-    [w, h] = featIm.shape
+    w = featIm.shape[0]
+    h = featIm.shape[1]
     featImData = featIm.reshape((w*h, -1))
     textureCenter = KMeans(n_clusters=numTextureRegions,
                            random_state=0).fit(featImData).cluster_centers_
@@ -163,10 +170,11 @@ def compareSegmentations(origIm, bank, textons, winSize, numColorRegions, numTex
 
 
 def main():
+
     # 1 加载图片
-    # TODO
-    # imgSet = ['gumballs.jpg', 'snake.jpg', 'twins.jpg']
-    imgSet = ['gumballs.jpg']
+    # TODO!
+    imgSet = ['gumballs.jpg', 'snake.jpg', 'twins.jpg']
+    # imgSet = ['gumballs.jpg']
     imStack = read_directory(imgSet)
     # 2 加载 filterBank
     bankPath = path.join(filePath, 'filterBank.mat')
@@ -181,8 +189,11 @@ def main():
 
     [colorLabelIm, textureLabelIm] = compareSegmentations(
         img, filterBank, textons, 49, 10, 50)
+
     print(colorLabelIm)
     print(textureLabelIm)
+    print(colorLabelIm.shape)
+    print(textureLabelIm.shape)
 
 
 if __name__ == '__main__':
