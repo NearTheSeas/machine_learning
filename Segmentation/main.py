@@ -40,9 +40,9 @@ def filter_response(img, bank):
     responses = np.zeros((w, h, bankSize))  # w * h * 38
     for r in range(bankSize):
         # TODO!
-        if r % 22 == 0:
-            responses[:, :, r] = signal.convolve2d(
-                img, bank[:, :, r],  mode='same')
+        # if r % 22 == 0:
+        responses[:, :, r] = signal.convolve2d(
+            img, bank[:, :, r],  mode='same')
     responses = responses.reshape((w*h, bankSize))
     return responses
 
@@ -132,7 +132,6 @@ def extractTextonHists(origIm, bank, textons, winSize):
         for j in range(windowMap.shape[1]):
             window = windowMap[i, j]
             frequency = Counter(window)
-            print(frequency)
             for key in (frequency):  # 'Counter' object has no attribute 'shape'
                 # padding 补的 -1
                 # TODO!
@@ -154,7 +153,7 @@ def compareSegmentations(origIm, bank, textons, winSize, numColorRegions, numTex
     colorCenter = KMeans(n_clusters=numColorRegions,  random_state=0).fit(
         colordata).cluster_centers_
     colorLabelIm = quantizeFeats(img, colorCenter)
-    
+
     featIm = extractTextonHists(origIm, bank, textons, winSize)
     w = featIm.shape[0]
     h = featIm.shape[1]
@@ -169,8 +168,8 @@ def main():
 
     # 1 加载图片
     # TODO!
-    # imgSet = ['gumballs.jpg', 'snake.jpg', 'twins.jpg']
-    imgSet = ['gumballs.jpg']
+    imgSet = ['gumballs.jpg', 'snake.jpg', 'twins.jpg']
+    # imgSet = ['gumballs.jpg']
     imStack = read_directory(imgSet)
     # 2 加载 filterBank
     bankPath = path.join(filePath, 'filterBank.mat')
@@ -186,10 +185,8 @@ def main():
     [colorLabelIm, textureLabelIm] = compareSegmentations(
         img, filterBank, textons, 49, 10, 50)
 
-    # print(colorLabelIm)
-    # print(textureLabelIm)
-    # print(colorLabelIm.shape)
-    # print(textureLabelIm.shape)
+    print(colorLabelIm)
+    print(textureLabelIm)
 
 
 if __name__ == '__main__':
