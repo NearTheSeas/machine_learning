@@ -14,9 +14,9 @@ from sklearn.cluster import KMeans
 filePath = path.join(getcwd(), 'Segmentation', 'resource')
 
 
-# 读取文件夹下所有图片
+# 读取文件夹下imgType格式的图片
 def read_directory(images=[], imgType='.jpg'):
-    print('load images')
+    print('load image set')
     imStack = []
     images = images if len(images) else listdir(filePath)
     for fullflname in images:
@@ -39,8 +39,6 @@ def filter_response(img, bank):
     # 初始化 滤波器结果集
     responses = np.zeros((w, h, bankSize))  # w * h * 38
     for r in range(bankSize):
-        # TODO!
-        # if r % 22 == 0:
         responses[:, :, r] = signal.convolve2d(
             img, bank[:, :, r],  mode='same')
     responses = responses.reshape((w*h, bankSize))
@@ -59,7 +57,6 @@ def pad_data(data, winSize):
 
 
 # 逐像素取大小为winSize*winSize的邻域数据
-# TODO! confirm
 def gen_window_data(data, winSize):
     [x, y] = data.shape
     m = x-winSize//2*2
@@ -76,12 +73,12 @@ def gen_window_data(data, winSize):
 # distances = cdist(responses, textons, metric='euclidean') ？？？？
 def quantizeFeats(featIm, meanFeats):
     print('quantizeFeats start')
-    w = featIm.shape[0]
-    h = featIm.shape[1]
+    height = featIm.shape[0]
+    width = featIm.shape[1]
     [size, dim] = meanFeats.shape
-    labelIm = np.zeros((w, h))
-    for i in range(w):
-        for j in range(h):
+    labelIm = np.zeros((height, width))
+    for i in range(height):
+        for j in range(width):
             minDis = -1
             for k in range(size):
                 dis = 0
@@ -134,7 +131,6 @@ def extractTextonHists(origIm, bank, textons, winSize):
             frequency = Counter(window)
             for key in (frequency):  # 'Counter' object has no attribute 'shape'
                 # padding 补的 -1
-                # TODO!
                 if key != -1:
                     textonIndex = int(key)
                     count = frequency[key]
@@ -145,18 +141,19 @@ def extractTextonHists(origIm, bank, textons, winSize):
 # 对比基于颜色和纹理的分割结果
 def compareSegmentations(origIm, bank, textons, winSize, numColorRegions, numTextureRegions):
     print('compareSegmentations start')
+    # print(origIm.size)  1000 * 667
     img = np.array(origIm)
-    [h, w, c] = img.shape
 
-    img = img.reshape((w, h, c))
-    colordata = img.reshape((w*h, c))
+    # print(img.shape)   667 * 1000 * 3
+    [h, w, c] = img.shape
+    colordata = img.reshape((h*w, c))
     colorCenter = KMeans(n_clusters=numColorRegions,  random_state=0).fit(
         colordata).cluster_centers_
     colorLabelIm = quantizeFeats(img, colorCenter)
 
     featIm = extractTextonHists(origIm, bank, textons, winSize)
-    w = featIm.shape[0]
-    h = featIm.shape[1]
+    h = featIm.shape[0]
+    w = featIm.shape[1]
     featImData = featIm.reshape((w*h, -1))
     textureCenter = KMeans(n_clusters=numTextureRegions,
                            random_state=0).fit(featImData).cluster_centers_
@@ -185,8 +182,20 @@ def main():
     [colorLabelIm, textureLabelIm] = compareSegmentations(
         img, filterBank, textons, 49, 10, 50)
 
-    print(colorLabelIm)
+    print(colorLabelIm.shape)
     print(textureLabelIm)
+
+    plt.figure(figsize=(16, 10), dpi=80)
+    # ：表示取第一块画板，通俗地讲，一个画板就是一张图，如果你有多个画板，那么最后就会弹出多张图。
+    plt.figure(1)
+    # ：221表示将画板划分为2行2列，然后取第1个区域。那么第几个区域是怎么界定的呢？这个规则遵循行优先数数规则！比如说4个区域：
+    ax1 = plt.subplot(131)
+    ax1.imshow(img)
+    ax2 = plt.subplot(132)
+    ax2.imshow(colorLabelIm)
+    ax3 = plt.subplot(133)
+    ax3.imshow(textureLabelIm)
+    plt.show()
 
 
 if __name__ == '__main__':
