@@ -137,7 +137,6 @@ def extractTextonHists(origIm, bank, textons, winSize):
     feattexton = indexs.reshape(h, w)
     # 图像边界处理
     feattexton = pad_data(feattexton, winSize)
-    print(feattexton.shape)
     # 获取窗口
     windowMap = gen_window_data(feattexton, winSize)
     featIm = np.zeros((h, w, kCenter))
@@ -186,7 +185,7 @@ def main():
     # 2 加载 filterBank
     bankPath = path.join(filePath, 'filterBank.mat')
     filterBank = sio.loadmat(bankPath)['F']  # 49*49*38
-    displayFilterBank(filterBank)
+    # displayFilterBank(filterBank)
     # 3 生成纹理词典
     textons = createTextons(imStack, filterBank, 5)
 
@@ -207,18 +206,15 @@ def main():
     pltTitle = str.substitute(
         winSize=winSize, numColorRegions=numColorRegions, numTextureRegions=numTextureRegions)
 
-    plt.figure(figsize=(24, 10), dpi=80)
+    plt.figure(figsize=(16, 10), dpi=80)
     plt.figure(1)
     plt.title(pltTitle)
     plt.axis('off')
     ax1 = plt.subplot(131)
-    ax1.title('origIm')
     ax1.imshow(img)
     ax2 = plt.subplot(132)
-    ax2.title('ColorRegion')
     ax2.imshow(colorLabelIm)
     ax3 = plt.subplot(133)
-    ax3.title('TextureRegion')
     ax3.imshow(textureLabelIm)
     plt.show()
     exit()
