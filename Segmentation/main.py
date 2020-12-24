@@ -10,6 +10,8 @@ from scipy.spatial.distance import cdist
 from collections import Counter
 from sklearn.cluster import KMeans
 
+from string import Template
+
 
 filePath = path.join(getcwd(), 'Segmentation', 'resource')
 
@@ -28,21 +30,16 @@ def read_directory(images=[], imgType='.jpg'):
     return imStack
 
 
-# 滤波器响应计算
-def filter_response(img, bank):
-    print('filter response')
-    # img => 灰度图 => numpy
-    img = img.convert('L')
-    [w, h] = img.size
-    img = np.array(img).transpose()
-    bankSize = bank.shape[2]  # 49*49*38
-    # 初始化 滤波器结果集
-    responses = np.zeros((w, h, bankSize))  # w * h * 38
-    for r in range(bankSize):
-        responses[:, :, r] = signal.convolve2d(
-            img, bank[:, :, r],  mode='same')
-    responses = responses.reshape((w*h, bankSize))
-    return responses
+# 展示filterbank
+def displayFilterBank(F):
+    numFilters = F.shape[2]
+    filterSize = F.shape[0]
+    gridSize = math.ceil(math.sqrt(numFilters))
+    for i in range(numFilters):
+        plt.subplot(gridSize, gridSize, i+1)
+        plt.axis('off')
+        plt.imshow(F[:, :, i])
+    plt.show()
 
 
 # 原始数据四周补-1
@@ -70,7 +67,6 @@ def gen_window_data(data, winSize):
 
 
 # 计算原始图像 至 meanFeats 的距离，生成隶属度矩阵 labelIm
-# distances = cdist(responses, textons, metric='euclidean') ？？？？
 def quantizeFeats(featIm, meanFeats):
     print('quantizeFeats start')
     height = featIm.shape[0]
@@ -88,7 +84,6 @@ def quantizeFeats(featIm, meanFeats):
                     if minDis < 0 or dis < minDis:
                         labelIm[i, j] = k
                         minDis = dis
-    # 获取每一维的最大值
     return labelIm
 
 
@@ -96,14 +91,27 @@ def quantizeFeats(featIm, meanFeats):
 def createTextons(imStack, bank, k):
     print('textons start')
     textonsData = []
+    bankSize = bank.shape[2]  # 49*49*38
+
     for img in imStack:
-        responses = filter_response(img, bank)
+        # responses = filter_response(img, bank)
+        img = img.convert('L')
+        img = np.array(img)
+        [h, w] = img.shape
+        # 初始化 滤波器结果集
+        responses = np.zeros((h, w, bankSize))  # w * h * 38
+        for r in range(bankSize):
+            responses[:, :, r] = signal.convolve2d(
+                img, bank[:, :, r],  mode='same')
+
+        responses = responses.reshape((h*w, bankSize))
         # 结果集合并
         textonsData = np.concatenate(
             (textonsData, responses), axis=0) if len(textonsData) else responses
     kmeans = KMeans(n_clusters=k,  random_state=0).fit(textonsData)
     # kmeans [labels_, cluster_centers_]
     textons = kmeans.cluster_centers_  # 聚类  k * 38
+
     return textons
 
 
@@ -111,19 +119,28 @@ def createTextons(imStack, bank, k):
 def extractTextonHists(origIm, bank, textons, winSize):
     print('extractTextonHists start')
     kCenter = textons.shape[1]
-    [w, h] = origIm.size
-    featIm = np.zeros((w, h, kCenter))  # 初始化
-    responses = filter_response(origIm, bank)
+    # img => 灰度图 => numpy
+    img = origIm.convert('L')
+    img = np.array(img)
+    [h, w] = img.shape
+    bankSize = bank.shape[2]  # 49*49*38
+    # 初始化 滤波器结果集
+    responses = np.zeros((h, w, bankSize))  # w * h * 38
+    for r in range(bankSize):
+        responses[:, :, r] = signal.convolve2d(
+            img, bank[:, :, r],  mode='same')
+    responses = responses.reshape((h*w, bankSize))
     # 计算纹理响应到纹理集的距离，生成隶属度矩阵
     distances = cdist(responses, textons, metric='euclidean')
     # 获取每一维的最大值
     indexs = distances.argmax(axis=1)
-    feattexton = indexs.reshape(w, h)
+    feattexton = indexs.reshape(h, w)
     # 图像边界处理
     feattexton = pad_data(feattexton, winSize)
     print(feattexton.shape)
     # 获取窗口
     windowMap = gen_window_data(feattexton, winSize)
+    featIm = np.zeros((h, w, kCenter))
     # 统计纹理频率
     for i in range(windowMap.shape[0]):
         for j in range(windowMap.shape[1]):
@@ -135,16 +152,15 @@ def extractTextonHists(origIm, bank, textons, winSize):
                     textonIndex = int(key)
                     count = frequency[key]
                     featIm[i, j, textonIndex] = count
+
     return featIm
 
 
 # 对比基于颜色和纹理的分割结果
 def compareSegmentations(origIm, bank, textons, winSize, numColorRegions, numTextureRegions):
     print('compareSegmentations start')
-    # print(origIm.size)  1000 * 667
-    img = np.array(origIm)
 
-    # print(img.shape)   667 * 1000 * 3
+    img = np.array(origIm)
     [h, w, c] = img.shape
     colordata = img.reshape((h*w, c))
     colorCenter = KMeans(n_clusters=numColorRegions,  random_state=0).fit(
@@ -152,6 +168,7 @@ def compareSegmentations(origIm, bank, textons, winSize, numColorRegions, numTex
     colorLabelIm = quantizeFeats(img, colorCenter)
 
     featIm = extractTextonHists(origIm, bank, textons, winSize)
+
     h = featIm.shape[0]
     w = featIm.shape[1]
     featImData = featIm.reshape((w*h, -1))
@@ -164,38 +181,47 @@ def compareSegmentations(origIm, bank, textons, winSize, numColorRegions, numTex
 def main():
 
     # 1 加载图片
-    # TODO!
     imgSet = ['gumballs.jpg', 'snake.jpg', 'twins.jpg']
-    # imgSet = ['gumballs.jpg']
     imStack = read_directory(imgSet)
     # 2 加载 filterBank
     bankPath = path.join(filePath, 'filterBank.mat')
     filterBank = sio.loadmat(bankPath)['F']  # 49*49*38
+    displayFilterBank(filterBank)
     # 3 生成纹理词典
     textons = createTextons(imStack, filterBank, 5)
 
-    imgName = 'coins.jpg'
-    # imgName = 'planets.jpg'
+    # imgName = 'coins.jpg'
+    imgName = 'planets.jpg'
     imgPath = path.join(filePath, imgName)
     img = Image.open(imgPath)
+    winSize, numColorRegions, numTextureRegions = 49, 10, 50
 
     [colorLabelIm, textureLabelIm] = compareSegmentations(
-        img, filterBank, textons, 49, 10, 50)
+        img, filterBank, textons, winSize, numColorRegions, numTextureRegions)
 
-    print(colorLabelIm.shape)
+    print(colorLabelIm)
     print(textureLabelIm)
 
-    plt.figure(figsize=(16, 10), dpi=80)
-    # ：表示取第一块画板，通俗地讲，一个画板就是一张图，如果你有多个画板，那么最后就会弹出多张图。
+    str = Template(
+        'winSize=${winSize}, numColorRegions=${numColorRegions}, numTextureRegions=${numTextureRegions}')
+    pltTitle = str.substitute(
+        winSize=winSize, numColorRegions=numColorRegions, numTextureRegions=numTextureRegions)
+
+    plt.figure(figsize=(24, 10), dpi=80)
     plt.figure(1)
-    # ：221表示将画板划分为2行2列，然后取第1个区域。那么第几个区域是怎么界定的呢？这个规则遵循行优先数数规则！比如说4个区域：
+    plt.title(pltTitle)
+    plt.axis('off')
     ax1 = plt.subplot(131)
+    ax1.title('origIm')
     ax1.imshow(img)
     ax2 = plt.subplot(132)
+    ax2.title('ColorRegion')
     ax2.imshow(colorLabelIm)
     ax3 = plt.subplot(133)
+    ax3.title('TextureRegion')
     ax3.imshow(textureLabelIm)
     plt.show()
+    exit()
 
 
 if __name__ == '__main__':
